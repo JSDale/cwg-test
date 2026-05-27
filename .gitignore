@@ -1,0 +1,30 @@
+# PDFs
+*.pdf
+
+# Build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.assets.json
+
+# Publish output
+publish/
+**/Properties/PublishProfiles/
+
+# Rider / ReSharper
+.idea/
+*.DotSettings.user
+
+# OS
+.DS_Store
+Thumbs.db

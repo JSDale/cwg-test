@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -n '76500,76650p' /tmp/smw200a_manual.txt)",
+      "Read(//private/tmp/**)"
+    ]
+  }
+}
