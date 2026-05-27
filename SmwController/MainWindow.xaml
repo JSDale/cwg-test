@@ -7,8 +7,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         Title="R&amp;S SMW200A Controller"
-        Width="580" Height="430"
-        ResizeMode="CanMinimize"
+        MinWidth="680" MinHeight="430"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
