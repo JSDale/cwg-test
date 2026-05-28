@@ -9,9 +9,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly ISmwService _smwService;
 
-    private string _ipAddress = "192.168.1.1";
+    private string _ipAddress = string.Empty;
     private int _port = 5025;
-    private string _scanRootPath = "/var/user";
+    private string _scanRootPath = "/var";
     private string _searchText = string.Empty;
     private string? _selectedWaveform;
     private string _status = "Not connected.";
