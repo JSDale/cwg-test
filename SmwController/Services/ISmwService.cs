@@ -8,10 +8,15 @@ public interface ISmwService : IDisposable
     void Disconnect();
 
     /// <summary>
-    /// Uploads a waveform file from the local PC to /var/user/ on the instrument,
-    /// selects it in the ARB generator, and enables the ARB generator.
+    /// Recursively walks <paramref name="rootPath"/> on the instrument and returns
+    /// the full instrument path of every *.wv file found.
     /// </summary>
-    Task LoadWaveformAsync(string localFilePath, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> GetWaveformFilesAsync(string rootPath = "/var/user", CancellationToken ct = default);
+
+    /// <summary>
+    /// Selects an existing waveform file already on the instrument and enables the ARB generator.
+    /// </summary>
+    Task SelectWaveformAsync(string instrumentPath, CancellationToken ct = default);
 
     Task SetPowerLevelAsync(double dBm, CancellationToken ct = default);
     Task StartRfOutputAsync(CancellationToken ct = default);

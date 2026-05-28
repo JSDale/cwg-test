@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(sed -n '76500,76650p' /tmp/smw200a_manual.txt)",
-      "Read(//private/tmp/**)"
+      "Read(//private/tmp/**)",
+      "Bash(grep -n \"MMEMory:CAT\\\\|MMEM:CAT\\\\|WAVeform:CAT\\\\|WAV:CAT\\\\|CATalog\" /tmp/smw200a_manual.txt | grep -v \"WSEGment\\\\|MSEGment\\\\|AWGN\\\\|DM:\\\\|MCCW\\\\|IQ:OUT\\\\|FADer\\\\|BBMM\\\\|MLISt\\\\|CLISt\\\\|STATe:CAT\\\\|SETTing:CAT\\\\|CORRection:CAT\\\\|FIXed:CAT\\\\|POWer:CAT\\\\|FREQuency:CAT\\\\|ARBitrary:WAVeform:CAT\" | head -40)",
+      "Read(//tmp/**)",
+      "Bash(pdftotext /Users/jacobdale/Development/cwg_jamming/SMW200A_UserManual_en_42.pdf /tmp/smw200a_manual.txt)"
     ]
   }
 }

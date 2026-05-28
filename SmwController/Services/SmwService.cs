@@ -1,6 +1,6 @@
-using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SmwController.Services;
 
@@ -13,6 +13,9 @@ public sealed class SmwService : ISmwService
     private TcpClient? _client;
     private NetworkStream? _stream;
     private readonly SemaphoreSlim _lock = new(1, 1);
+
+    // Matches every quoted entry in an MMEMory:CATalog? response: "name,TYPE,size"
+    private static readonly Regex CatalogEntryRegex = new("\"([^\"]+)\"", RegexOptions.Compiled);
 
     public bool IsConnected => _client?.Connected == true;
 
@@ -29,7 +32,6 @@ public sealed class SmwService : ISmwService
             await _client.ConnectAsync(ipAddress, port, ct);
             _stream = _client.GetStream();
 
-            // Verify identity
             await SendCommandAsync("*IDN?", ct);
             var idn = await ReadResponseAsync(ct);
             if (!idn.Contains("SMW200A", StringComparison.OrdinalIgnoreCase) &&
@@ -50,41 +52,70 @@ public sealed class SmwService : ISmwService
         _client = null;
     }
 
-    public async Task LoadWaveformAsync(string localFilePath, CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> GetWaveformFilesAsync(
+        string rootPath = "/var/user", CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
 
-        var fileName = Path.GetFileName(localFilePath);
-        var instrumentPath = $"/var/user/{fileName}";
-        var fileBytes = await File.ReadAllBytesAsync(localFilePath, ct);
+        var results = new List<string>();
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await WalkDirectoryAsync(rootPath, results, depth: 0, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+        return results;
+    }
+
+    private async Task WalkDirectoryAsync(
+        string path, List<string> waveforms, int depth, CancellationToken ct)
+    {
+        if (depth > 10) return; // guard against unexpected deep trees
+
+        await SendCommandAsync($":MMEMory:CATalog? \"{path}\"", ct);
+        var response = await ReadResponseAsync(ct);
+
+        foreach (Match m in CatalogEntryRegex.Matches(response))
+        {
+            // Each entry inside quotes is: "<name>,<TYPE>,<size>"
+            // Split from the right so names containing commas are handled safely.
+            var parts = m.Groups[1].Value.Split(',');
+            if (parts.Length < 3) continue;
+
+            var name = string.Join(",", parts[..^2]);
+            var type = parts[^2].Trim();
+
+            if (name is "." or "..") continue;
+
+            if (type.Equals("DIR", StringComparison.OrdinalIgnoreCase))
+            {
+                await WalkDirectoryAsync($"{path}/{name}", waveforms, depth + 1, ct);
+            }
+            else if (name.EndsWith(".wv", StringComparison.OrdinalIgnoreCase))
+            {
+                waveforms.Add($"{path}/{name}");
+            }
+        }
+    }
+
+    public async Task SelectWaveformAsync(string instrumentPath, CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected.");
+
+        // Strip .wv extension — the instrument accepts the path without it
+        var pathWithoutExt = instrumentPath.EndsWith(".wv", StringComparison.OrdinalIgnoreCase)
+            ? instrumentPath[..^3]
+            : instrumentPath;
 
         await _lock.WaitAsync(ct);
         try
         {
-            // Upload file using MMEMory:DATA with IEEE 488.2 arbitrary block header
-            var header = BuildBlockHeader(fileBytes.Length);
-            var pathBytes = Encoding.ASCII.GetBytes($":MMEMory:DATA \"{instrumentPath}\",");
-            var terminator = new byte[] { (byte)'\n' };
-
-            var combined = new byte[pathBytes.Length + header.Length + fileBytes.Length + terminator.Length];
-            Buffer.BlockCopy(pathBytes, 0, combined, 0, pathBytes.Length);
-            Buffer.BlockCopy(header, 0, combined, pathBytes.Length, header.Length);
-            Buffer.BlockCopy(fileBytes, 0, combined, pathBytes.Length + header.Length, fileBytes.Length);
-            Buffer.BlockCopy(terminator, 0, combined, combined.Length - 1, 1);
-
-            await _stream!.WriteAsync(combined, ct);
-            await _stream.FlushAsync(ct);
-
-            // Wait for upload to complete
-            await Task.Delay(500, ct);
-
-            // Select the waveform in the ARB (omit extension as per manual)
-            var nameWithoutExt = Path.GetFileNameWithoutExtension(instrumentPath);
-            var dir = Path.GetDirectoryName(instrumentPath)!.Replace('\\', '/');
-            var arbPath = $"{dir}/{nameWithoutExt}";
-
-            await SendCommandAsync($":SOURce1:BB:ARBitrary:WAVeform:SELect \"{arbPath}\"", ct);
+            await SendCommandAsync($":SOURce1:BB:ARBitrary:WAVeform:SELect \"{pathWithoutExt}\"", ct);
             await SendCommandAsync(":SOURce1:BB:ARBitrary:STATe ON", ct);
         }
         finally
@@ -167,11 +198,11 @@ public sealed class SmwService : ISmwService
 
     private async Task<string> ReadResponseAsync(CancellationToken ct)
     {
-        var buffer = new byte[4096];
+        var buffer = new byte[65536];
         var sb = new StringBuilder();
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(5_000);
+        cts.CancelAfter(15_000);
 
         while (true)
         {
@@ -182,16 +213,6 @@ public sealed class SmwService : ISmwService
         }
 
         return sb.ToString().TrimEnd('\n', '\r');
-    }
-
-    /// <summary>
-    /// Builds an IEEE 488.2 arbitrary block header: #&lt;digits&gt;&lt;length&gt;
-    /// </summary>
-    private static byte[] BuildBlockHeader(int byteCount)
-    {
-        var lengthStr = byteCount.ToString();
-        var header = $"#{lengthStr.Length}{lengthStr}";
-        return Encoding.ASCII.GetBytes(header);
     }
 
     public void Dispose()

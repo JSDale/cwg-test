@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         Title="R&amp;S SMW200A Controller"
-        MinWidth="680" MinHeight="430"
+        MinWidth="700" MinHeight="600"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -34,10 +34,9 @@
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ── Connection ── -->
@@ -77,31 +76,122 @@
             </Grid>
         </Border>
 
-        <!-- ── Arbitrary Waveform ── -->
+        <!-- ── Waveform Browser ── -->
         <Border Grid.Row="1" Style="{StaticResource GroupBox}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Arbitrary Waveform"/>
+                <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Waveform Browser"/>
 
-                <Grid Grid.Row="1">
+                <!-- Root path + Scan -->
+                <Grid Grid.Row="1" Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Grid.Column="0" Content="Root path:" Margin="0,0,4,0"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding ScanRootPath, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,0,6,0"/>
+                    <Button Grid.Column="2"
+                            Content="Scan Instrument"
+                            Command="{Binding ScanWaveformsCommand}"/>
+                </Grid>
+
+                <!-- Search / filter -->
+                <Grid Grid.Row="2" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Grid.Column="0" Content="Search:" Margin="0,0,4,0"/>
+                    <!-- Grid overlay provides the placeholder hint text -->
+                    <Grid Grid.Column="1">
+                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}"/>
+                        <TextBlock Text="Filter by name or path…"
+                                   Foreground="#AAAAAA"
+                                   IsHitTestVisible="False"
+                                   Margin="7,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="13">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SearchText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Grid>
+
+                <!-- Waveform list -->
+                <ListView Grid.Row="3"
+                          ItemsSource="{Binding FilteredWaveformFiles}"
+                          SelectedItem="{Binding SelectedWaveform}"
+                          BorderBrush="#CCCCCC"
+                          BorderThickness="1"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Directory" Width="330">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource PathDirectoryConverter}}"
+                                                   ToolTip="{Binding}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="File" Width="240">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource PathFilenameConverter}}"
+                                                   ToolTip="{Binding}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- Selection label + Load button -->
+                <Grid Grid.Row="4" Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBox Grid.Column="0"
-                             Text="{Binding WaveformPath, UpdateSourceTrigger=PropertyChanged}"
-                             IsReadOnly="True"
-                             Margin="0,0,6,0"
-                             Background="White"/>
+                    <TextBlock Grid.Column="0"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Text="{Binding SelectedWaveform, TargetNullValue='No waveform selected.'}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#333333"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedWaveform}" Value="{x:Null}">
+                                        <Setter Property="Foreground" Value="#AAAAAA"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-                    <Button Grid.Column="1" Content="Browse..."     Command="{Binding BrowseWaveformCommand}"/>
-                    <Button Grid.Column="2" Content="Load Waveform" Command="{Binding LoadWaveformCommand}"/>
+                    <Button Grid.Column="1"
+                            Content="Load Selected Waveform"
+                            Command="{Binding LoadWaveformCommand}"/>
                 </Grid>
             </Grid>
         </Border>
@@ -177,7 +267,6 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"/>
 
-                <!-- Connection indicator -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="10" Height="10" Margin="0,0,5,0">
                         <Ellipse.Style>

@@ -1,5 +1,5 @@
-using Microsoft.Win32;
 using SmwController.Services;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -11,7 +11,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private string _ipAddress = "192.168.1.1";
     private int _port = 5025;
-    private string _waveformPath = string.Empty;
+    private string _scanRootPath = "/var/user";
+    private string _searchText = string.Empty;
+    private string? _selectedWaveform;
     private string _status = "Not connected.";
     private double _currentLevel = -60.0;
     private bool _isBusy;
@@ -27,17 +29,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _smwService = smwService;
 
-        ConnectCommand      = new AsyncRelayCommand(ConnectAsync,    () => !IsBusy);
-        DisconnectCommand   = new RelayCommand(Disconnect,           () => _smwService.IsConnected && !IsBusy);
-        BrowseWaveformCommand = new RelayCommand(BrowseWaveform);
+        ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !IsBusy);
+        DisconnectCommand = new RelayCommand(Disconnect,
+            () => _smwService.IsConnected && !IsBusy);
+        ScanWaveformsCommand = new AsyncRelayCommand(ScanWaveformsAsync,
+            () => _smwService.IsConnected && !IsBusy && !IsRfActive);
         LoadWaveformCommand = new AsyncRelayCommand(LoadWaveformAsync,
-            () => _smwService.IsConnected && !string.IsNullOrWhiteSpace(WaveformPath) && !IsBusy && !IsRfActive);
+            () => _smwService.IsConnected && SelectedWaveform != null && !IsBusy && !IsRfActive);
         StartRfCommand = new AsyncRelayCommand(StartRfAsync,
             () => _smwService.IsConnected && !IsRfActive && !IsBusy);
         StopRfCommand = new RelayCommand(StopRf, () => IsRfActive);
     }
 
-    // ── Bindable properties ──────────────────────────────────────────────────
+    // ── Connection ───────────────────────────────────────────────────────────
 
     public string IpAddress
     {
@@ -51,11 +55,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetProperty(ref _port, value);
     }
 
-    public string WaveformPath
+    public bool IsConnected => _smwService.IsConnected;
+
+    // ── Waveform browser ─────────────────────────────────────────────────────
+
+    public string ScanRootPath
     {
-        get => _waveformPath;
-        set => SetProperty(ref _waveformPath, value);
+        get => _scanRootPath;
+        set => SetProperty(ref _scanRootPath, value);
     }
+
+    /// <summary>All waveform paths returned by the last scan.</summary>
+    public ObservableCollection<string> WaveformFiles { get; } = new();
+
+    /// <summary>Live-filtered view of <see cref="WaveformFiles"/>.</summary>
+    public ObservableCollection<string> FilteredWaveformFiles { get; } = new();
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value))
+                ApplyFilter();
+        }
+    }
+
+    public string? SelectedWaveform
+    {
+        get => _selectedWaveform;
+        set => SetProperty(ref _selectedWaveform, value);
+    }
+
+    // ── RF control ───────────────────────────────────────────────────────────
 
     public string Status
     {
@@ -69,7 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetProperty(ref _currentLevel, value);
     }
 
-    /// <summary>True only during short blocking operations (connect, load waveform).</summary>
+    /// <summary>True only during short blocking operations (connect, scan, load waveform).</summary>
     public bool IsBusy
     {
         get => _isBusy;
@@ -83,18 +115,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => SetProperty(ref _isRfActive, value);
     }
 
-    public bool IsConnected => _smwService.IsConnected;
-
     // ── Commands ─────────────────────────────────────────────────────────────
 
     public AsyncRelayCommand ConnectCommand { get; }
     public RelayCommand DisconnectCommand { get; }
-    public RelayCommand BrowseWaveformCommand { get; }
+    public AsyncRelayCommand ScanWaveformsCommand { get; }
     public AsyncRelayCommand LoadWaveformCommand { get; }
     public AsyncRelayCommand StartRfCommand { get; }
     public RelayCommand StopRfCommand { get; }
 
-    // ── Command implementations ───────────────────────────────────────────────
+    // ── Implementations ───────────────────────────────────────────────────────
 
     private async Task ConnectAsync(CancellationToken ct)
     {
@@ -125,29 +155,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsConnected));
     }
 
-    private void BrowseWaveform()
+    private async Task ScanWaveformsAsync(CancellationToken ct)
     {
-        var dlg = new OpenFileDialog
+        IsBusy = true;
+        Status = $"Scanning {ScanRootPath} for waveform files…";
+        WaveformFiles.Clear();
+        FilteredWaveformFiles.Clear();
+        SelectedWaveform = null;
+
+        try
         {
-            Title = "Select Waveform File",
-            Filter = "Waveform files (*.wv)|*.wv|All files (*.*)|*.*"
-        };
-        if (dlg.ShowDialog() == true)
-            WaveformPath = dlg.FileName;
+            var files = await _smwService.GetWaveformFilesAsync(ScanRootPath, ct);
+            foreach (var f in files)
+                WaveformFiles.Add(f);
+
+            ApplyFilter();
+            Status = $"Found {files.Count} waveform file{(files.Count == 1 ? "" : "s")}.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private async Task LoadWaveformAsync(CancellationToken ct)
     {
+        if (SelectedWaveform is null) return;
+
         IsBusy = true;
-        Status = "Uploading waveform to instrument…";
+        Status = $"Loading waveform: {SelectedWaveform}…";
         try
         {
-            await _smwService.LoadWaveformAsync(WaveformPath, ct);
-            Status = "Waveform loaded. ARB generator enabled.";
+            await _smwService.SelectWaveformAsync(SelectedWaveform, ct);
+            Status = $"Waveform loaded. ARB generator enabled.";
         }
         catch (Exception ex)
         {
-            Status = $"Waveform load failed: {ex.Message}";
+            Status = $"Load failed: {ex.Message}";
         }
         finally
         {
@@ -165,12 +213,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            // Set initial level and enable RF output
             await _smwService.SetPowerLevelAsync(StartLevel, token);
             await _smwService.StartRfOutputAsync(token);
 
-            // Ramp from StartLevel to StopLevel in StepSize increments,
-            // dwelling DwellSeconds at each level.
             double level = StartLevel;
             while (!token.IsCancellationRequested)
             {
@@ -180,7 +225,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                 if (level >= StopLevel)
                 {
-                    // Final level reached — hold until user presses Stop
                     Status = $"RF ON — Ramp complete. Holding at {level:+0.0;-0.0} dBm. Press Stop to disable RF.";
                     await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 }
@@ -199,7 +243,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            // Always disable RF output when done or stopped
             try { await _smwService.StopRfOutputAsync(CancellationToken.None); }
             catch { /* best-effort */ }
 
@@ -211,7 +254,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void StopRf() => _rampCts?.Cancel();
 
-    // ── INotifyPropertyChanged ─────────────────────────────────────────────
+    // ── Filtering ─────────────────────────────────────────────────────────────
+
+    private void ApplyFilter()
+    {
+        FilteredWaveformFiles.Clear();
+        var term = _searchText.Trim();
+
+        foreach (var file in WaveformFiles)
+        {
+            if (term.Length == 0 ||
+                file.Contains(term, StringComparison.OrdinalIgnoreCase))
+            {
+                FilteredWaveformFiles.Add(file);
+            }
+        }
+    }
+
+    // ── INotifyPropertyChanged ────────────────────────────────────────────────
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

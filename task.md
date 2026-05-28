@@ -7,7 +7,9 @@ this is an application that can control and monitor the SMW200 signal generator 
 ## User Requirements
 
 - Provide the user a GUI to enter the IP address and port number of the device to connect to.
-- Provide a button to load an arbitrary waveform into the signal generator.
+- Query the signal generator for all available waveform files stored in its memory (across all directories) and present them in a searchable list so the user can select which waveform to load. A combobox is not acceptable due to the potentially large number of files spread across multiple directories.
+- Provide a search/filter field so the user can narrow down the waveform list by name or path.
+- Load the user-selected waveform from instrument memory into the ARB generator.
 - Start the RF output on the signal generator.
 - Auto increment the drive level in 10dBm increments with a 10 second dwell time.
 - Allow the user to stop the RF output at any given time.
