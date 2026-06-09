@@ -14,13 +14,14 @@ public interface ISmwService : IDisposable
     Task<IReadOnlyList<string>> GetWaveformFilesAsync(string rootPath = "/var/user", CancellationToken ct = default);
 
     /// <summary>
-    /// Selects an existing waveform file already on the instrument and enables the ARB generator.
+    /// Selects an existing waveform file already on the instrument and enables the ARB generator
+    /// on the specified RF channel (1 or 2).
     /// </summary>
-    Task SelectWaveformAsync(string instrumentPath, CancellationToken ct = default);
+    Task SelectWaveformAsync(string instrumentPath, int channel = 1, CancellationToken ct = default);
 
-    Task SetPowerLevelAsync(double dBm, CancellationToken ct = default);
-    Task StartRfOutputAsync(CancellationToken ct = default);
-    Task StopRfOutputAsync(CancellationToken ct = default);
+    Task SetPowerLevelAsync(double dBm, int channel = 1, CancellationToken ct = default);
+    Task StartRfOutputAsync(int channel = 1, CancellationToken ct = default);
+    Task StopRfOutputAsync(int channel = 1, CancellationToken ct = default);
 
     Task<string> QueryAsync(string query, CancellationToken ct = default);
 }

@@ -11,7 +11,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private string _ipAddress = string.Empty;
     private int _port = 5025;
-    private string _scanRootPath = "/var";
+    private string _scanRootPath = "/var/usr";
     private string _searchText = string.Empty;
     private string? _selectedWaveform;
     private string _status = "Not connected.";
@@ -34,7 +34,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             () => _smwService.IsConnected && !IsBusy);
         ScanWaveformsCommand = new AsyncRelayCommand(ScanWaveformsAsync,
             () => _smwService.IsConnected && !IsBusy && !IsRfActive);
-        LoadWaveformCommand = new AsyncRelayCommand(LoadWaveformAsync,
+        LoadWaveformCh1Command = new AsyncRelayCommand(
+            ct => LoadWaveformAsync(1, ct),
+            () => _smwService.IsConnected && SelectedWaveform != null && !IsBusy && !IsRfActive);
+        LoadWaveformCh2Command = new AsyncRelayCommand(
+            ct => LoadWaveformAsync(2, ct),
             () => _smwService.IsConnected && SelectedWaveform != null && !IsBusy && !IsRfActive);
         StartRfCommand = new AsyncRelayCommand(StartRfAsync,
             () => _smwService.IsConnected && !IsRfActive && !IsBusy);
@@ -120,7 +124,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public AsyncRelayCommand ConnectCommand { get; }
     public RelayCommand DisconnectCommand { get; }
     public AsyncRelayCommand ScanWaveformsCommand { get; }
-    public AsyncRelayCommand LoadWaveformCommand { get; }
+    public AsyncRelayCommand LoadWaveformCh1Command { get; }
+    public AsyncRelayCommand LoadWaveformCh2Command { get; }
     public AsyncRelayCommand StartRfCommand { get; }
     public RelayCommand StopRfCommand { get; }
 
@@ -182,16 +187,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task LoadWaveformAsync(CancellationToken ct)
+    private async Task LoadWaveformAsync(int channel, CancellationToken ct)
     {
         if (SelectedWaveform is null) return;
 
         IsBusy = true;
-        Status = $"Loading waveform: {SelectedWaveform}…";
+        Status = $"Loading waveform to Channel {channel}: {SelectedWaveform}…";
         try
         {
-            await _smwService.SelectWaveformAsync(SelectedWaveform, ct);
-            Status = $"Waveform loaded. ARB generator enabled.";
+            await _smwService.SelectWaveformAsync(SelectedWaveform, channel, ct);
+            Status = $"Channel {channel} waveform loaded. ARB generator enabled.";
         }
         catch (Exception ex)
         {
@@ -213,13 +218,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            await _smwService.SetPowerLevelAsync(StartLevel, token);
-            await _smwService.StartRfOutputAsync(token);
+            await _smwService.SetPowerLevelAsync(StartLevel, 1, token);
+            await _smwService.SetPowerLevelAsync(StartLevel, 2, token);
+            await _smwService.StartRfOutputAsync(1, token);
+            await _smwService.StartRfOutputAsync(2, token);
 
             double level = StartLevel;
             while (!token.IsCancellationRequested)
             {
-                await _smwService.SetPowerLevelAsync(level, token);
+                await _smwService.SetPowerLevelAsync(level, 1, token);
+                await _smwService.SetPowerLevelAsync(level, 2, token);
                 CurrentLevel = level;
                 Status = $"RF ON — Level: {level:+0.0;-0.0} dBm";
 
@@ -243,7 +251,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            try { await _smwService.StopRfOutputAsync(CancellationToken.None); }
+            try
+            {
+                await _smwService.StopRfOutputAsync(1, CancellationToken.None);
+                await _smwService.StopRfOutputAsync(2, CancellationToken.None);
+            }
             catch { /* best-effort */ }
 
             IsRfActive = false;

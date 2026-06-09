@@ -102,7 +102,7 @@ public sealed class SmwService : ISmwService
         }
     }
 
-    public async Task SelectWaveformAsync(string instrumentPath, CancellationToken ct = default)
+    public async Task SelectWaveformAsync(string instrumentPath, int channel = 1, CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
@@ -115,8 +115,8 @@ public sealed class SmwService : ISmwService
         await _lock.WaitAsync(ct);
         try
         {
-            await SendCommandAsync($":SOURce1:BB:ARBitrary:WAVeform:SELect \"{pathWithoutExt}\"", ct);
-            await SendCommandAsync(":SOURce1:BB:ARBitrary:STATe ON", ct);
+            await SendCommandAsync($":SOURce{channel}:BB:ARBitrary:WAVeform:SELect \"{pathWithoutExt}\"", ct);
+            await SendCommandAsync($":SOURce{channel}:BB:ARBitrary:STATe ON", ct);
         }
         finally
         {
@@ -124,7 +124,7 @@ public sealed class SmwService : ISmwService
         }
     }
 
-    public async Task SetPowerLevelAsync(double dBm, CancellationToken ct = default)
+    public async Task SetPowerLevelAsync(double dBm, int channel = 1, CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
@@ -132,7 +132,7 @@ public sealed class SmwService : ISmwService
         await _lock.WaitAsync(ct);
         try
         {
-            await SendCommandAsync($":SOURce1:POWer:LEVel:IMMediate:AMPLitude {dBm:F1}", ct);
+            await SendCommandAsync($":SOURce{channel}:POWer:LEVel:IMMediate:AMPLitude {dBm:F1}", ct);
         }
         finally
         {
@@ -140,7 +140,7 @@ public sealed class SmwService : ISmwService
         }
     }
 
-    public async Task StartRfOutputAsync(CancellationToken ct = default)
+    public async Task StartRfOutputAsync(int channel = 1, CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
@@ -148,7 +148,7 @@ public sealed class SmwService : ISmwService
         await _lock.WaitAsync(ct);
         try
         {
-            await SendCommandAsync(":OUTPut1:STATe ON", ct);
+            await SendCommandAsync($":OUTPut{channel}:STATe ON", ct);
         }
         finally
         {
@@ -156,7 +156,7 @@ public sealed class SmwService : ISmwService
         }
     }
 
-    public async Task StopRfOutputAsync(CancellationToken ct = default)
+    public async Task StopRfOutputAsync(int channel = 1, CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected.");
@@ -164,7 +164,7 @@ public sealed class SmwService : ISmwService
         await _lock.WaitAsync(ct);
         try
         {
-            await SendCommandAsync(":OUTPut1:STATe OFF", ct);
+            await SendCommandAsync($":OUTPut{channel}:STATe OFF", ct);
         }
         finally
         {

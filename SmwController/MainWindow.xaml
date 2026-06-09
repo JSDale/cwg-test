@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         Title="R&amp;S SMW200A Controller"
-        MinWidth="700" MinHeight="600"
+        MinWidth="700" MinHeight="640"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -112,7 +112,6 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Label Grid.Column="0" Content="Search:" Margin="0,0,4,0"/>
-                    <!-- Grid overlay provides the placeholder hint text -->
                     <Grid Grid.Column="1">
                         <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                  IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}"/>
@@ -166,10 +165,11 @@
                     </ListView.View>
                 </ListView>
 
-                <!-- Selection label + Load button -->
+                <!-- Selection label + Load buttons -->
                 <Grid Grid.Row="4" Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
@@ -190,8 +190,12 @@
                     </TextBlock>
 
                     <Button Grid.Column="1"
-                            Content="Load Selected Waveform"
-                            Command="{Binding LoadWaveformCommand}"/>
+                            Content="Load to Channel 1"
+                            Command="{Binding LoadWaveformCh1Command}"/>
+
+                    <Button Grid.Column="2"
+                            Content="Load to Channel 2"
+                            Command="{Binding LoadWaveformCh2Command}"/>
                 </Grid>
             </Grid>
         </Border>
@@ -205,7 +209,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="RF Output Control"/>
+                <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="RF Output Control (Both Channels)"/>
 
                 <!-- Ramp parameters (read-only display) -->
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
